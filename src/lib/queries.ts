@@ -1,4 +1,5 @@
 import { dbConnect } from "@/lib/db"
+import { Blog } from "@/models/Blog"
 import { Menu } from "@/models/Menu"
 import { Page } from "@/models/Page"
 import { Review } from "@/models/Review"
@@ -67,6 +68,111 @@ export async function getNavigation(): Promise<NavMenu[]> {
   }))
 }
 
+export type MenuDetail = {
+  id: string
+  title: string
+  slug: string
+  pages: {
+    title: string
+    slug: string
+    metaDescription?: string
+  }[]
+}
+
+export type PageDetail = {
+  id: string
+  title: string
+  slug: string
+  metaTitle?: string
+  metaDescription?: string
+  ogImage?: string
+  content: string
+  menu: { title: string; slug: string }
+  siblings: { title: string; slug: string }[]
+  updatedAt: string
+}
+
+/**
+ * A menu and its published pages, for /[menuSlug].
+ * Returns null for an unknown or deactivated menu so the route can 404.
+ */
+export async function getMenuBySlug(slug: string): Promise<MenuDetail | null> {
+  await dbConnect()
+
+  const menu = await Menu.findOne({ slug, isActive: true })
+    .select("title slug")
+    .lean()
+
+  if (!menu) return null
+
+  const pages = await Page.find({ menuId: menu._id, isPublished: true })
+    .sort({ order: 1, title: 1 })
+    .select("title slug metaDescription")
+    .lean()
+
+  return {
+    id: String(menu._id),
+    title: menu.title,
+    slug: menu.slug,
+    pages: pages.map((p) => ({
+      title: p.title,
+      slug: p.slug,
+      metaDescription: p.metaDescription,
+    })),
+  }
+}
+
+/**
+ * One published page, for /[menuSlug]/[pageSlug].
+ *
+ * Resolves the menu first so a page can never be reached through the wrong
+ * menu's URL — /taxation/trademark-registration must 404 even though that page
+ * exists under a different menu.
+ */
+export async function getPageBySlug(
+  menuSlug: string,
+  pageSlug: string
+): Promise<PageDetail | null> {
+  await dbConnect()
+
+  const menu = await Menu.findOne({ slug: menuSlug, isActive: true })
+    .select("title slug")
+    .lean()
+
+  if (!menu) return null
+
+  const page = await Page.findOne({
+    menuId: menu._id,
+    slug: pageSlug,
+    isPublished: true,
+  }).lean()
+
+  if (!page) return null
+
+  // Sibling pages power the in-page "other services" nav.
+  const siblings = await Page.find({
+    menuId: menu._id,
+    isPublished: true,
+    _id: { $ne: page._id },
+  })
+    .sort({ order: 1, title: 1 })
+    .select("title slug")
+    .lean()
+
+  return {
+    id: String(page._id),
+    title: page.title,
+    slug: page.slug,
+    metaTitle: page.metaTitle,
+    metaDescription: page.metaDescription,
+    ogImage: page.ogImage,
+    content: page.content ?? "",
+    menu: { title: menu.title, slug: menu.slug },
+    siblings: siblings.map((s) => ({ title: s.title, slug: s.slug })),
+    updatedAt: page.updatedAt.toISOString(),
+  }
+}
+
 /** Active testimonials for the homepage. Nowhere else renders these. */
 export async function getActiveReviews(limit = 6): Promise<ReviewItem[]> {
   await dbConnect()
@@ -83,6 +189,116 @@ export async function getActiveReviews(limit = 6): Promise<ReviewItem[]> {
     avatar: r.avatar,
     rating: r.rating,
     quote: r.quote,
+  }))
+}
+
+export type BlogCardItem = {
+  id: string
+  title: string
+  slug: string
+  excerpt?: string
+  coverImage?: string
+  author?: string
+  publishedAt: string | null
+}
+
+export type BlogDetail = BlogCardItem & {
+  metaTitle?: string
+  metaDescription?: string
+  ogImage?: string
+  content: string
+  updatedAt: string
+}
+
+export const BLOGS_PER_PAGE = 9
+
+/**
+ * Paginated published posts, newest first.
+ *
+ * The count and the page are fetched together — the listing needs both, and
+ * running them sequentially would double the latency for no reason.
+ */
+export async function getPublishedBlogs(page = 1): Promise<{
+  blogs: BlogCardItem[]
+  total: number
+  totalPages: number
+  page: number
+}> {
+  await dbConnect()
+
+  const filter = { isPublished: true }
+  const current = Math.max(1, Math.floor(page) || 1)
+
+  const [total, docs] = await Promise.all([
+    Blog.countDocuments(filter),
+    Blog.find(filter)
+      .sort({ publishedAt: -1, createdAt: -1 })
+      .skip((current - 1) * BLOGS_PER_PAGE)
+      .limit(BLOGS_PER_PAGE)
+      .select("-content")
+      .lean(),
+  ])
+
+  return {
+    total,
+    page: current,
+    totalPages: Math.max(1, Math.ceil(total / BLOGS_PER_PAGE)),
+    blogs: docs.map((b) => ({
+      id: String(b._id),
+      title: b.title,
+      slug: b.slug,
+      excerpt: b.metaDescription,
+      coverImage: b.coverImage,
+      author: b.author,
+      publishedAt: b.publishedAt ? b.publishedAt.toISOString() : null,
+    })),
+  }
+}
+
+/** One published post. Returns null for drafts so the route can 404. */
+export async function getBlogBySlug(slug: string): Promise<BlogDetail | null> {
+  await dbConnect()
+
+  const blog = await Blog.findOne({ slug, isPublished: true }).lean()
+  if (!blog) return null
+
+  return {
+    id: String(blog._id),
+    title: blog.title,
+    slug: blog.slug,
+    metaTitle: blog.metaTitle,
+    metaDescription: blog.metaDescription,
+    excerpt: blog.metaDescription,
+    ogImage: blog.ogImage,
+    coverImage: blog.coverImage,
+    content: blog.content ?? "",
+    author: blog.author,
+    publishedAt: blog.publishedAt ? blog.publishedAt.toISOString() : null,
+    updatedAt: blog.updatedAt.toISOString(),
+  }
+}
+
+/** Recent posts excluding one, for the "read next" strip on a post page. */
+export async function getRelatedBlogs(
+  excludeSlug: string,
+  limit = 3
+): Promise<BlogCardItem[]> {
+  await dbConnect()
+
+  const docs = await Blog.find({ isPublished: true, slug: { $ne: excludeSlug } })
+    .sort({ publishedAt: -1, createdAt: -1 })
+    .limit(limit)
+    .select("-content")
+    .lean()
+
+  return docs.map((b) => ({
+    id: String(b._id),
+    title: b.title,
+    slug: b.slug,
+    excerpt: b.metaDescription,
+    coverImage: b.coverImage,
+    author: b.author,
+    publishedAt: b.publishedAt ? b.publishedAt.toISOString() : null,
   }))
 }
 

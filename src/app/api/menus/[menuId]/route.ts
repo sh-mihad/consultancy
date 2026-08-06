@@ -13,16 +13,24 @@ import {
   unauthorized,
 } from "@/lib/api-response"
 
-// Next.js 15: route params arrive as a Promise and must be awaited.
-type Context = { params: Promise<{ id: string }> }
+/**
+ * Next.js 15: route params arrive as a Promise and must be awaited.
+ *
+ * The segment MUST be named `menuId`, not `id`. Next.js requires the same slug
+ * name at the same path position, and the sibling route is
+ * /api/menus/[menuId]/pages. Mismatched names compile cleanly and then throw
+ * "You cannot use different slug names for the same dynamic path" at runtime,
+ * taking down every route in the app.
+ */
+type Context = { params: Promise<{ menuId: string }> }
 
-/** PUT /api/menus/[id] — update a menu. */
+/** PUT /api/menus/[menuId] — update a menu. */
 export async function PUT(request: NextRequest, { params }: Context) {
   try {
     const session = await requireAdmin()
     if (!session) return unauthorized()
 
-    const { id } = await params
+    const { menuId: id } = await params
 
     const body = await request.json().catch(() => null)
     if (!body || typeof body !== "object") return fail("Invalid request body.", 400)
@@ -63,7 +71,7 @@ export async function PUT(request: NextRequest, { params }: Context) {
 }
 
 /**
- * DELETE /api/menus/[id]
+ * DELETE /api/menus/[menuId]
  *
  * Deleting a menu that still has pages is BLOCKED rather than cascaded.
  *
@@ -78,7 +86,7 @@ export async function DELETE(_request: NextRequest, { params }: Context) {
     const session = await requireAdmin()
     if (!session) return unauthorized()
 
-    const { id } = await params
+    const { menuId: id } = await params
 
     await dbConnect()
 

@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server"
 import { dbConnect } from "@/lib/db"
 import { Menu } from "@/models/Menu"
 import { menuSchema } from "@/lib/validation"
+import { parseReorderPayload } from "@/lib/reorder"
 import { requireAdmin } from "@/lib/auth-guard"
 import { created, fail, handleApiError, ok, unauthorized } from "@/lib/api-response"
 
@@ -47,33 +48,20 @@ export async function PATCH(request: NextRequest) {
     if (!session) return unauthorized()
 
     const body = await request.json().catch(() => null)
-    const items = (body as { items?: unknown })?.items
+    const parsed = parseReorderPayload(body)
 
-    if (!Array.isArray(items)) {
-      return fail("Expected { items: [{ id, order }] }.", 400)
-    }
-
-    const updates = items.filter(
-      (i): i is { id: string; order: number } =>
-        typeof i?.id === "string" &&
-        /^[a-f\d]{24}$/i.test(i.id) &&
-        Number.isInteger(i?.order)
-    )
-
-    if (updates.length !== items.length) {
-      return fail("Every item needs a valid id and integer order.", 400)
-    }
+    if (!parsed.ok) return fail(parsed.error, 400)
 
     await dbConnect()
 
     // One round trip regardless of how many menus moved.
     await Menu.bulkWrite(
-      updates.map(({ id, order }) => ({
+      parsed.items.map(({ id, order }) => ({
         updateOne: { filter: { _id: id }, update: { $set: { order } } },
       }))
     )
 
-    return ok({ updated: updates.length })
+    return ok({ updated: parsed.items.length })
   } catch (err) {
     return handleApiError(err)
   }

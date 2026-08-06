@@ -4,7 +4,7 @@ import * as React from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import type { ColumnDef } from "@tanstack/react-table"
-import { ChevronDown, ChevronUp, FileText, Pencil, Plus, Trash2 } from "lucide-react"
+import { FileText, Pencil, Plus, Trash2 } from "lucide-react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -17,10 +17,7 @@ export function MenusTable({ menus }: { menus: MenuRow[] }) {
   const router = useRouter()
   const [dialogOpen, setDialogOpen] = React.useState(false)
   const [editing, setEditing] = React.useState<MenuRow | null>(null)
-  const [reordering, setReordering] = React.useState(false)
 
-  // Sorted copy drives the up/down buttons; the table may sort differently for
-  // display without changing what "move up" means.
   const ordered = React.useMemo(
     () => [...menus].sort((a, b) => a.order - b.order || a.title.localeCompare(b.title)),
     [menus]
@@ -36,34 +33,32 @@ export function MenusTable({ menus }: { menus: MenuRow[] }) {
     setDialogOpen(true)
   }
 
-  async function move(menu: MenuRow, direction: -1 | 1) {
-    const index = ordered.findIndex((m) => m.id === menu.id)
-    const swapWith = ordered[index + direction]
-    if (!swapWith) return
+  /**
+   * Persist a drag. Returning false tells DataTable to roll its optimistic
+   * reorder back, so a failed request never leaves the UI showing an order the
+   * database doesn't have.
+   *
+   * Orders are rewritten as 0..n-1 rather than swapped, which keeps them dense
+   * and stops gaps accumulating after repeated drags.
+   */
+  async function persistOrder(orderedIds: string[]): Promise<boolean> {
+    const res = await fetch("/api/menus", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        items: orderedIds.map((id, index) => ({ id, order: index })),
+      }),
+    })
+    const json = await res.json().catch(() => null)
 
-    setReordering(true)
-    try {
-      // Swap the two order values and send both in one request.
-      const res = await fetch("/api/menus", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          items: [
-            { id: menu.id, order: swapWith.order },
-            { id: swapWith.id, order: menu.order },
-          ],
-        }),
-      })
-      const json = await res.json().catch(() => null)
-
-      if (!res.ok || !json?.success) {
-        toast.error(json?.error ?? "Could not reorder.")
-        return
-      }
-      router.refresh()
-    } finally {
-      setReordering(false)
+    if (!res.ok || !json?.success) {
+      toast.error(json?.error ?? "Could not save the new order.")
+      return false
     }
+
+    toast.success("Order saved")
+    router.refresh()
+    return true
   }
 
   async function remove(menu: MenuRow) {
@@ -82,37 +77,6 @@ export function MenusTable({ menus }: { menus: MenuRow[] }) {
   }
 
   const columns: ColumnDef<MenuRow>[] = [
-    {
-      id: "reorder",
-      header: "",
-      enableSorting: false,
-      size: 60,
-      cell: ({ row }) => {
-        const index = ordered.findIndex((m) => m.id === row.original.id)
-        return (
-          <div className="flex flex-col">
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label={`Move ${row.original.title} up`}
-              disabled={index <= 0 || reordering}
-              onClick={() => move(row.original, -1)}
-            >
-              <ChevronUp />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              aria-label={`Move ${row.original.title} down`}
-              disabled={index >= ordered.length - 1 || reordering}
-              onClick={() => move(row.original, 1)}
-            >
-              <ChevronDown />
-            </Button>
-          </div>
-        )
-      },
-    },
     {
       accessorKey: "title",
       header: "Title",
@@ -187,6 +151,9 @@ export function MenusTable({ menus }: { menus: MenuRow[] }) {
       <DataTable
         columns={columns}
         data={ordered}
+        getRowId={(row) => row.id}
+        onReorder={persistOrder}
+        reorderLabel={(row) => row.title}
         searchColumn="title"
         searchPlaceholder="Search menus…"
         emptyTitle="No menus yet"

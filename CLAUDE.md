@@ -25,7 +25,8 @@ Versions below are what is **actually installed**, not aspirational.
 | Database | MongoDB + Mongoose **9.9** | Local MongoDB 8.3 on `localhost:27017`. Single connection, globally cached |
 | Styling | Tailwind CSS **v4** | **CSS-first — there is no `tailwind.config.ts`.** Tokens live in `@theme` inside `globals.css` |
 | Components | shadcn/ui (radix base, nova preset) | Source copied into `components/ui/` — owned code, not a dependency. Config in `components.json` |
-| Tables | `@tanstack/react-table` v9 | Backs the shared admin `DataTable` |
+| Tables | `@tanstack/react-table` **v8** | Backs the shared admin `DataTable`. v8 on purpose — see Gotchas |
+| Drag & drop | `@dnd-kit` (core / sortable / modifiers) | Row reordering in `DataTable` |
 | Auth | NextAuth **v5** (`next-auth@5.0.0-beta`) | Credentials provider, admin only. **v5 API differs from v4** — see Gotchas |
 | Forms | Formik + Yup | Same Yup schema reused server-side |
 | Rich text | Tiptap **v3** | Chosen over React-Quill (unmaintained, React 19 friction). Wrapped in `RichTextEditor` so it stays swappable |
@@ -58,7 +59,7 @@ consultency/
 │   │   ├── api/
 │   │   │   ├── auth/[...nextauth]/route.ts
 │   │   │   ├── menus/route.ts                  # GET, POST
-│   │   │   ├── menus/[id]/route.ts             # PUT, DELETE
+│   │   │   ├── menus/[menuId]/route.ts         # PUT, DELETE  (NOT [id] — see Gotchas)
 │   │   │   ├── menus/[menuId]/pages/route.ts   # GET, POST
 │   │   │   ├── pages/[id]/route.ts             # PUT, DELETE
 │   │   │   ├── blogs/route.ts                  # GET, POST
@@ -72,14 +73,15 @@ consultency/
 │   ├── components/
 │   │   ├── ui/        # shadcn/ui primitives — shared, importable by admin and public
 │   │   ├── admin/     # AdminShell, DataTable (TanStack), MenuDialog, ReviewDialog,
-│   │   │              # SubmissionDialog, PageForm, BlogForm, RichTextEditor,
-│   │   │              # ConfirmDialog, StatusBadge, PageHeader, EmptyState
+│   │   │              # SubmissionDialog, PageForm, BlogForm, SettingsForm,
+│   │   │              # RichTextEditor, ConfirmDialog, StatusBadge, PageHeader, EmptyState
 │   │   ├── public/    # Navbar, Footer, ServiceCard, BlogCard, Pagination
 │   │   └── home/      # Hero, AboutUs, MainServices, HowToOpen, Reviews, ContactForm
 │   ├── models/        # Menu.ts, Page.ts, Blog.ts, Admin.ts, Review.ts,
 │   │                  # SiteSettings.ts, ContactSubmission.ts
-│   ├── lib/           # db.ts, auth-guard.ts, api-response.ts, slugify.ts,
-│   │                  # format.ts, metadata.ts, validation/
+│   ├── lib/           # db.ts, auth-guard.ts, api-response.ts, slugify.ts, format.ts,
+│   │                  # metadata.ts, settings.ts, reorder.ts, rate-limit.ts,
+│   │                  # sanitize.ts, queries.ts, validation/
 │   ├── types/         # next-auth.d.ts (session/JWT augmentation)
 │   ├── auth.config.ts # EDGE-SAFE NextAuth config — imported by middleware
 │   ├── auth.ts        # Node-only NextAuth config — Credentials + Mongoose
@@ -92,16 +94,11 @@ consultency/
 Keep `components/admin/` and `components/public/` strictly separate — no cross-imports. Both may
 import from `components/ui/` (shadcn primitives); `components/home/` is public-side only.
 
-> **Status:** the tree above is the *target*. Built so far: the Next.js scaffold,
-> `components/ui/` (19 shadcn primitives + Container/Section/Spinner/EmptyState/StatusBadge),
-> `components/public/` (ServiceCard, BlogCard, StepCard, ReviewCard, Pagination),
-> `components/admin/` (PageHeader, ConfirmDialog, AdminShell, AdminNav, LoginForm), all 7
-> `models/`, `lib/db.ts`, `lib/api-response.ts`, `lib/slugify.ts`, `lib/format.ts`,
-> `lib/auth-guard.ts`, `lib/validation/`, `scripts/seed.ts`, and full admin auth
-> (`auth.config.ts`, `auth.ts`, `middleware.ts`, `/admin/login`, `/admin/dashboard`).
-> **Not written yet:** the CRUD API routes, the rest of `app/admin/`, `components/home/`,
-> `lib/metadata.ts`, and all public routes — `src/app/page.tsx` is still the default Next.js
-> starter page.
+> **Status:** the tree above is now built, with two gaps. Every model, every API route, every
+> admin screen and every public route in the map exists, including `components/home/` (all 7
+> sections), `lib/metadata.ts` and `lib/settings.ts`.
+> **Not written yet:** `sitemap.ts` / `robots.ts` (step 8), and the `loading.tsx` / `error.tsx`
+> polish pass (step 9).
 >
 > `src/app/test/` is a temporary component gallery. Delete it before launch (build order step 9).
 >
@@ -267,9 +264,9 @@ Written by the public `POST /api/contact`; readable only by an authenticated adm
 | `/admin/submissions` | admin | Contact form inbox; view in modal, mark read / delete |
 | `/admin/settings` | admin | Homepage section content + site info (SiteSettings singleton) |
 | `/api/menus` | api | `GET`, `POST` |
-| `/api/menus/[id]` | api | `PUT`, `DELETE` |
+| `/api/menus/[menuId]` | api | `PUT`, `DELETE`. **Must be `[menuId]`, not `[id]`** — see Gotchas |
 | `/api/menus/[menuId]/pages` | api | `GET`, `POST` |
-| `/api/pages/[id]` | api | `PUT`, `DELETE` |
+| `/api/pages/[id]` | api | `GET`, `PUT`, `DELETE` |
 | `/api/blogs` | api | `GET`, `POST` |
 | `/api/blogs/[id]` | api | `PUT`, `DELETE` |
 | `/api/reviews` | api | `GET`, `POST` |
@@ -360,10 +357,10 @@ single source of truth for what is and isn't done.
 | 1 | Database foundation | ✅ Done |
 | 2 | Admin authentication | ✅ Done |
 | 3 | Menu CRUD | ✅ Done |
-| 4 | Page CRUD | ⬜ Not started |
-| 5 | Public navigation + service pages | 🟡 Nav + footer done; `/[menuSlug]` routes pending |
-| 6 | Blog CRUD + public blog | ⬜ Not started |
-| 7 | Homepage (7 sections) | 🟡 Public page + contact API done; admin CRUD pending |
+| 4 | Page CRUD | ✅ Done |
+| 5 | Public navigation + service pages | ✅ Done |
+| 6 | Blog CRUD + public blog | ✅ Done |
+| 7 | Homepage (7 sections) | ✅ Done |
 | 8 | SEO metadata + OG images | ⬜ Not started |
 | 9 | Polish + remove `/test` | ⬜ Not started |
 
@@ -417,7 +414,7 @@ single source of truth for what is and isn't done.
 - [x] Server-side `menuSchema` validation + explicit slug check *and* the unique index
 - [x] Shared `DataTable` (TanStack **v8**) with sorting, search and empty state
 - [x] `MenuDialog` — slug auto-derives from title but locks the moment it's hand-edited
-- [x] Reorder via up/down buttons → one `PATCH` with both swapped orders
+- [x] **Drag-and-drop reordering** (dnd-kit) → one `PATCH` rewriting orders as dense `0..n-1`
 - [x] **Menu delete is BLOCKED while pages exist**, not cascaded — see decision below
 - [x] Verified 23/23: 401 unauthenticated, 409 duplicate slug, 422 bad slug, no self-collision when
       re-saving an unchanged slug, reorder persists, 409 on delete-with-pages naming the count
@@ -427,34 +424,90 @@ single source of truth for what is and isn't done.
 > is deliberate. `isActive: false` already covers "hide this from the site", which is what is
 > usually actually wanted.
 
-### ⬜ 4. Page CRUD
+### ✅ 4. Page CRUD
 
-- [ ] `GET`/`POST /api/menus/[menuId]/pages`, `PUT`/`DELETE /api/pages/[id]`
-- [ ] Per-menu slug uniqueness enforced in the handler *and* by the compound index
-- [ ] `/admin/menus/[menuId]/pages` list + full-route editor at `.../[pageId]`
-- [ ] `RichTextEditor` — Tiptap, `"use client"`, `dynamic(..., { ssr: false })`
-- [ ] SEO fields + `ogImage` on the editor
+- [x] `GET`/`POST /api/menus/[menuId]/pages`, `GET`/`PUT`/`DELETE /api/pages/[id]`
+- [x] **`menuId` is taken from the URL, never the payload** — otherwise a client could create a
+      page under a menu it wasn't targeting
+- [x] Per-menu slug uniqueness in the handler *and* via the compound index; self excluded on update
+- [x] `/admin/menus/[menuId]/pages` list + `new/` + full-route editor at `.../[pageId]`
+- [x] Editor 404s if the page id belongs to a different menu than the URL
+- [x] `RichTextEditor` — Tiptap v3, `immediatelyRender: false`, loaded via
+      `dynamic(..., { ssr: false })`. No H1 button: the page title is the h1
+- [x] Tabs: Content / SEO (with character counters) / Settings
+- [x] Drag-and-drop reordering scoped to the menu being viewed
+- [x] Verified 31/31, plus a 23/23 regression re-run of Menu CRUD after the route rename
 
-### ⬜ 5. Public navigation and service pages
+### Reordering
 
-- [ ] Server-rendered `Navbar`/`Footer` built from `Menu`/`Page` with `revalidate`
-- [ ] `/[menuSlug]` — lists published sub-pages; **redirect when the menu has exactly one page**
-- [ ] `/[menuSlug]/[pageSlug]` — sanitized content in `.prose-content`
-- [ ] Every public query filters `isPublished: true`
+Drag-and-drop, via `@dnd-kit`, built into the shared `DataTable`. Pass `getRowId`, `onReorder` and
+`reorderLabel` to enable it; omit them and the table behaves as before. Reviews and blogs can adopt
+it the same way.
 
-### ⬜ 6. Blog CRUD and public blog
+| Concern | How it behaves |
+| --- | --- |
+| Endpoint | `PATCH /api/menus` · `PATCH /api/menus/[menuId]/pages` — both take `{ items: [{id, order}] }` |
+| Payload validation | Shared `lib/reorder.ts` — rejects non-arrays, empty batches, bad ObjectIds, non-integer orders, duplicate ids, and batches over 500 |
+| Order values | Rewritten dense `0..n-1` on every drag, so gaps never accumulate |
+| Scoping | The pages endpoint filters on `menuId`, so ids from another menu match nothing and report `updated: 0` |
+| Failure | `DataTable` reorders optimistically and **rolls back** if `onReorder` returns `false` or throws |
+| Sorting conflict | Drag is disabled while a column sort or search filter is active — a list can't be both manually ordered and sorted by title |
+| Accessibility | Handle is a real `<button>` with an accessible name; dnd-kit's `KeyboardSensor` makes reordering keyboard-operable |
 
-- [ ] `GET`/`POST /api/blogs`, `PUT`/`DELETE /api/blogs/[id]` — global slug uniqueness
-- [ ] `/admin/blogs` list + full-route editor (Tiptap, cover image, `ogImage`, author, date)
-- [ ] `/blogs` paginated listing using `Pagination`; `/blogs/[slug]` detail
+Listeners are attached to the **grip handle only**, never the whole row — otherwise the row's links
+and buttons stop being clickable.
 
-### ⬜ 7. Homepage
+### ✅ 5. Public navigation and service pages
 
-- [ ] `SiteSettings` admin form at `/admin/settings` — **upsert only**, never `create()`
-- [ ] `Review` CRUD at `/admin/reviews` — list + modal, no detail route
-- [ ] Public `POST /api/contact` — honeypot + rate limit, never returns submissions
-- [ ] `/admin/submissions` inbox — view modal, mark read, delete
-- [ ] Compose the 7 sections; Main Services queries `Menu` directly (no duplicate list)
+- [x] Server-rendered `Navbar`/`Footer` built from `Menu`/`Page`, `revalidate = 60` on the layout
+- [x] `/[menuSlug]` — lists published sub-pages, breadcrumbs, empty state
+- [x] **Redirects to the page when a menu has exactly one published page**
+- [x] `/[menuSlug]/[pageSlug]` — sanitized content in `.prose-content`, sibling nav, CTA
+- [x] `lib/metadata.ts` `buildMetadata()` — canonical, OG, Twitter card, image fallback chain
+- [x] Custom public `not-found.tsx` offering the real navigation
+- [x] Verified 34/34: drafts 404 and stay out of listings, inactive menus vanish from the site
+      *and* the navbar, cross-menu URLs 404, canonical resolves absolute via `metadataBase`
+
+> **`/[menuSlug]` is a bare dynamic segment at the root**, so it catches every unknown top-level
+> path. `notFound()` is what stops `/nonsense` rendering an empty shell. Static siblings
+> (`/blogs`, `/admin`) still win — Next.js resolves static segments first.
+
+### ✅ 6. Blog CRUD and public blog
+
+- [x] `GET`/`POST /api/blogs`, `GET`/`PUT`/`DELETE /api/blogs/[id]` — **global** slug uniqueness
+- [x] `publishedAt` auto-stamped the first time a draft goes live; admin override respected
+- [x] `/admin/blogs` list + `new/` + full-route editor (Tiptap, cover image, `ogImage`, author,
+      date). Admin list queries `.select("-content")` — the list never shows bodies
+- [x] `/blogs` paginated listing (9/page) + `/blogs/[slug]` detail with cover image, related posts
+- [x] `article:published_time` / `modified_time` in OG metadata; image chain
+      `ogImage → coverImage → site default`
+- [x] Verified 41/41: drafts 404 and stay out of the listing, duplicate slug 409, out-of-range and
+      non-numeric `?page=` handled without crashing, `/blogs` not shadowed by `/[menuSlug]`
+
+### ✅ 7. Homepage
+
+- [x] `SiteSettings` admin form at `/admin/settings` — **upsert only**, never `create()`.
+      `GET`/`PUT /api/settings`, six tabs (Hero / About / Sections / Contact / Footer / SEO),
+      Tiptap for the About body, add-remove-reorder repeater for `howTo.steps[]`.
+      `lib/settings.ts` owns both shape conversions so the page, the form and the route
+      handler can't drift on which fields exist
+- [x] `Review` CRUD at `/admin/reviews` — list + modal, **no detail route** (convention 9).
+      `GET`/`POST`/`PATCH /api/reviews`, `PUT`/`DELETE /api/reviews/[id]`.
+      Star-picker rating, avatar preview with initials fallback, drag reorder,
+      deactivate-instead-of-delete offered in the confirm copy.
+      New reviews append to the end rather than colliding at order 0.
+      Verified 34/34
+- [x] Public `POST /api/contact` — honeypot + rate limit, never returns submissions
+- [x] `/admin/submissions` inbox — read-only modal, mark read / unread, delete.
+      `PATCH`/`DELETE /api/submissions/[id]`; `isRead` is the only mutable field, because a
+      submission is a record of what a visitor sent, not content the admin authors.
+      Opening an unread message marks it read; the footer toggle puts it back
+- [x] Compose the 7 sections; Main Services queries `Menu` directly (no duplicate list)
+- [x] Verified 48/48 over HTTP: 401 on every settings and submissions endpoint while signed
+      out, 422 on a bad image URL / rating > 5 / a step with an empty title, cleared fields
+      stay cleared, exactly one `sitesettings` document after repeated saves, `isRead`
+      round-trips both ways, 404 on an unknown id and 400 on a malformed one, and the
+      homepage picks up a settings change once the 60s ISR window passes
 
 ### ⬜ 8. SEO metadata and OG images
 
@@ -525,6 +578,12 @@ stall the driver before falling back.
 - **`SiteSettings` must stay a singleton** — always `findOneAndUpdate({}, ..., { upsert: true })`.
   A plain `create()` on a second save silently gives you two config documents and a homepage that
   changes depending on which one is read first.
+- **Write each settings section as a whole object, never as dotted paths.** Mongoose drops
+  `undefined` from an update, so `$set: { "hero.backgroundImage": undefined }` is a no-op and a
+  field the admin just cleared comes straight back on the next load. Replacing the whole `hero`
+  object removes whatever was emptied. `lib/settings.ts` does both conversions — document → form
+  and form → `$set` — so the admin page, the form and the route handler can't disagree about
+  which fields exist.
 - **shadcn/ui writes into `components/ui/`** — that folder is the one shared exception to the
   "no cross-imports between admin and public" rule. Both sides may import from it; neither may
   import from the other.
@@ -550,10 +609,31 @@ stall the driver before falling back.
 - **A honeypot field must never fail validation.** Returning a 422 that names the field tells the
   bot exactly what to remove, and it retries clean. Keep `website` permissive in the Yup schema and
   let the route return a fake success — see `POST /api/contact`.
+- **Public pages are ISR-cached for 60s** (`revalidate = 60` on the `(public)` layout), so an
+  admin edit can take up to a minute to appear on the site. That is deliberate — the navbar would
+  otherwise cost two queries on every request to every page. Don't treat the delay as a bug, and
+  don't write tests that assert a just-saved record appears on a public page immediately.
+  The homepage also caps testimonials at `getActiveReviews(6)`, so a seventh review will not show
+  regardless of caching.
+- **Sibling dynamic segments must share one name.** `/api/menus/[id]` and
+  `/api/menus/[menuId]/pages` cannot coexist: Next.js throws *"You cannot use different slug names
+  for the same dynamic path ('id' !== 'menuId')"*. It **compiles and lints cleanly**, then fails at
+  runtime and 500s *every route in the app*, not just those two. The whole tree under
+  `/api/menus/` uses `[menuId]`. Only `npm run start` catches this — `npm run build` does not.
+- **Tiptap needs `immediatelyRender: false`** under the App Router, on top of
+  `dynamic(..., { ssr: false })`. Without it the editor renders during SSR and React throws a
+  hydration mismatch on every load.
+- **Toolbar buttons inside a form need `type="button"`.** Buttons default to `type="submit"`, so
+  clicking Bold would submit the page instead of bolding the selection.
 - **Stop `next start` before rebuilding.** A running production server holds `.next` open; on
-  Windows `rm -rf .next && next build` underneath it produces corrupted output —
-  `PageNotFoundError` or an empty `app-paths-manifest.json` — that looks like a code fault and
-  isn't.
+  Windows `rm -rf .next && next build` underneath it produces corrupted output that looks like a
+  code fault and isn't. Three distinct symptoms seen so far, all fixed by stopping the server and
+  doing a clean `rm -rf .next && npm run build`:
+  1. `PageNotFoundError: /_document` during build
+  2. an empty `app-paths-manifest.json`, so every route 404s at runtime
+  3. `Module N was instantiated … but the module factory is not available` (Turbopack chunk
+     mismatch), so every route 500s
+  If something fails in a way that seems structurally impossible, rebuild before debugging it.
 - **`create-next-app` refuses to run in a non-empty directory** — CLAUDE.md had to be moved aside
   during scaffolding. Relevant only if the project is ever re-scaffolded.
 - **Mongoose builds indexes lazily**, on first write to a collection. A declared index therefore
