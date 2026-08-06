@@ -3,6 +3,7 @@ import type { Metadata } from "next"
 
 import { auth } from "@/auth"
 import { AdminShell } from "@/components/admin/admin-shell"
+import { Toaster } from "@/components/ui/sonner"
 
 export const metadata: Metadata = {
   title: { default: "Admin", template: "%s · Admin" },
@@ -28,5 +29,11 @@ export default async function ProtectedAdminLayout({
     redirect("/admin/login")
   }
 
-  return <AdminShell session={session}>{children}</AdminShell>
+  return (
+    <>
+      <AdminShell session={session}>{children}</AdminShell>
+      {/* Mounted once for the whole admin area — every mutation toasts here. */}
+      <Toaster position="top-right" richColors />
+    </>
+  )
 }

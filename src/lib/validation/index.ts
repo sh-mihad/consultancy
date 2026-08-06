@@ -101,10 +101,13 @@ export const contactSchema = Yup.object({
     .max(4000, "Message is too long."),
   /**
    * Honeypot. Real users never see this field, so any value means a bot.
-   * The public endpoint is unauthenticated, so this plus rate limiting is the
-   * only thing standing between the inbox and spam.
+   *
+   * Deliberately permissive: it must NOT fail validation. A 422 naming this
+   * field tells the bot precisely what to stop sending, and it retries clean.
+   * The route handler checks it after validation passes and returns a fake
+   * success instead, so the bot believes it worked and never adapts.
    */
-  website: Yup.string().max(0, "Rejected."),
+  website: Yup.string().default(""),
 })
 
 export type ContactInput = Yup.InferType<typeof contactSchema>

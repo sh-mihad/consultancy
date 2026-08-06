@@ -359,11 +359,11 @@ single source of truth for what is and isn't done.
 | 0 | Scaffold + theme + shared components | ✅ Done |
 | 1 | Database foundation | ✅ Done |
 | 2 | Admin authentication | ✅ Done |
-| 3 | Menu CRUD | ⬜ Not started |
+| 3 | Menu CRUD | ✅ Done |
 | 4 | Page CRUD | ⬜ Not started |
-| 5 | Public navigation + service pages | ⬜ Not started |
+| 5 | Public navigation + service pages | 🟡 Nav + footer done; `/[menuSlug]` routes pending |
 | 6 | Blog CRUD + public blog | ⬜ Not started |
-| 7 | Homepage (7 sections) | ⬜ Not started |
+| 7 | Homepage (7 sections) | 🟡 Public page + contact API done; admin CRUD pending |
 | 8 | SEO metadata + OG images | ⬜ Not started |
 | 9 | Polish + remove `/test` | ⬜ Not started |
 
@@ -410,12 +410,22 @@ single source of truth for what is and isn't done.
       `passwordHash` never leaks, signed-in users bounced off the login page, public routes
       unaffected
 
-### ⬜ 3. Menu CRUD
+### ✅ 3. Menu CRUD
 
-- [ ] `GET`/`POST /api/menus`, `PUT`/`DELETE /api/menus/[id]` — auth + `menuSchema` server-side
-- [ ] `/admin/menus` — TanStack `DataTable`, create/edit in modal, reorder, `ConfirmDialog` delete
-- [ ] Decide and implement the orphaned-`Page` rule on menu delete (cascade or block)
-- [ ] Verify: duplicate slug rejected with 409; reorder persists
+- [x] `GET`/`POST /api/menus`, `PUT`/`DELETE /api/menus/[id]`, `PATCH /api/menus` (bulk reorder)
+- [x] Every handler calls `requireAdmin()` — middleware does not cover `/api/*`
+- [x] Server-side `menuSchema` validation + explicit slug check *and* the unique index
+- [x] Shared `DataTable` (TanStack **v8**) with sorting, search and empty state
+- [x] `MenuDialog` — slug auto-derives from title but locks the moment it's hand-edited
+- [x] Reorder via up/down buttons → one `PATCH` with both swapped orders
+- [x] **Menu delete is BLOCKED while pages exist**, not cascaded — see decision below
+- [x] Verified 23/23: 401 unauthenticated, 409 duplicate slug, 422 bad slug, no self-collision when
+      re-saving an unchanged slug, reorder persists, 409 on delete-with-pages naming the count
+
+> **Decision — deleting a menu with pages is blocked.** Cascading would destroy every page under it
+> from a single click, with no undo. Blocking forces the admin to move or delete pages first, which
+> is deliberate. `isActive: false` already covers "hide this from the site", which is what is
+> usually actually wanted.
 
 ### ⬜ 4. Page CRUD
 
@@ -468,7 +478,9 @@ single source of truth for what is and isn't done.
 npm run dev      # dev server (Turbopack)      — works
 npm run build    # production build (Turbopack) — works, currently passing
 npm run lint     # eslint                       — works
-npm run seed     # tsx scripts/seed.ts           — works, idempotent
+npm run seed      # bootstrap: admin + menus + settings singleton. Idempotent, never overwrites
+npm run seed:demo # DEV FIXTURES: overwrites SiteSettings, upserts 19 pages / 6 reviews / 4 blogs.
+                  # Do not run against production.
 ```
 
 Adding a shadcn component: `npx shadcn@latest add <name> -y`. Note the CLI changed — `-b` now
@@ -525,8 +537,23 @@ stall the driver before falling back.
 - **`npm audit` reports 3 high vulns** (postcss + sharp) inherited transitively from Next 15.5.22.
   `npm audit fix --force` would install Next 16 — a breaking upgrade. Left as-is deliberately since
   the project is pinned to Next 15. Both are build-time/image-pipeline deps, not request-path code.
-- **`@tanstack/react-table` is v9**, while most shadcn data-table examples online target v8. Verify
-  the API against the installed package before copying a tutorial.
+- **`@tanstack/react-table` is pinned to v8 on purpose.** v9 shipped a full API rewrite — no
+  `useReactTable`, no `getCoreRowModel`; it uses `useTable` with composed features
+  (`createSortedRowModel`, `rowSortingFeature`, …). Every shadcn data-table example targets v8, and
+  these admin lists are simple. Do not "upgrade" to v9 without rewriting `DataTable`.
+- **lucide-react v1 removed all brand icons.** `Facebook`, `Linkedin`, `Twitter` and `Youtube` no
+  longer exist and fail to typecheck. Social marks live in
+  `components/public/social-icons.tsx` as inline SVG.
+- **The font variable must be `--font-sans`.** The shadcn preset styles everything off it; naming
+  the loader variable `--font-geist-sans` (the create-next-app default) leaves `font-sans`
+  resolving to nothing and the whole site silently falls back to the UA font.
+- **A honeypot field must never fail validation.** Returning a 422 that names the field tells the
+  bot exactly what to remove, and it retries clean. Keep `website` permissive in the Yup schema and
+  let the route return a fake success — see `POST /api/contact`.
+- **Stop `next start` before rebuilding.** A running production server holds `.next` open; on
+  Windows `rm -rf .next && next build` underneath it produces corrupted output —
+  `PageNotFoundError` or an empty `app-paths-manifest.json` — that looks like a code fault and
+  isn't.
 - **`create-next-app` refuses to run in a non-empty directory** — CLAUDE.md had to be moved aside
   during scaffolding. Relevant only if the project is ever re-scaffolded.
 - **Mongoose builds indexes lazily**, on first write to a collection. A declared index therefore
