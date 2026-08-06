@@ -1,0 +1,243 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+/* Light-only project. The `dark` variant stays declared so shadcn primitives that
+   ship `dark:` classes still compile, but no `.dark` block is defined — nothing
+   ever activates it. Do not add one without auditing every section. */
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-brand-navy: var(--brand-navy);
+  --color-brand-navy-dark: var(--brand-navy-dark);
+  --color-brand-navy-light: var(--brand-navy-light);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-gold-dark: var(--brand-gold-dark);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* ---------------------------------------------------------------------------
+   Brand tokens — the ONLY place raw color values are allowed.
+   Everything else must reference a semantic token (bg-primary, text-accent…).
+   --------------------------------------------------------------------------- */
+:root {
+  /* raw brand ramp */
+  --brand-navy: #0f2a4a;
+  --brand-navy-dark: #081a30;
+  --brand-navy-light: #1c4270;
+  --brand-gold: #c9a227;
+  --brand-gold-dark: #a8861d;
+
+  /* semantic surface */
+  --background: #ffffff;
+  --foreground: #0b1220;
+  --card: #ffffff;
+  --card-foreground: #0b1220;
+  --popover: #ffffff;
+  --popover-foreground: #0b1220;
+
+  /* semantic brand */
+  --primary: var(--brand-navy);
+  --primary-foreground: #ffffff;
+  --secondary: #f5f7fa;
+  --secondary-foreground: var(--brand-navy);
+  --accent: var(--brand-gold);
+  --accent-foreground: #0b1220;
+
+  /* neutrals */
+  --muted: #f5f7fa;
+  --muted-foreground: #5b6b7f;
+  --border: #e2e8f0;
+  --input: #e2e8f0;
+  --ring: var(--brand-navy);
+
+  /* status */
+  --destructive: #dc2626;
+  --success: #059669;
+  --warning: #d97706;
+
+  --chart-1: var(--brand-navy);
+  --chart-2: var(--brand-navy-light);
+  --chart-3: var(--brand-gold);
+  --chart-4: #5b6b7f;
+  --chart-5: #94a3b8;
+
+  --radius: 0.625rem;
+
+  /* admin sidebar — navy shell, gold active state */
+  --sidebar: var(--brand-navy);
+  --sidebar-foreground: #cbd5e1;
+  --sidebar-primary: var(--brand-gold);
+  --sidebar-primary-foreground: #0b1220;
+  --sidebar-accent: rgb(255 255 255 / 8%);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgb(255 255 255 / 10%);
+  --sidebar-ring: var(--brand-gold);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+  html {
+    @apply font-sans scroll-smooth;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Project classes — layout rhythm and type scale.
+   Use these instead of retyping the same utility chains in every section.
+   --------------------------------------------------------------------------- */
+@layer components {
+  .container-x {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .section {
+    @apply py-16 md:py-24;
+  }
+
+  .section-alt {
+    @apply py-16 md:py-24 bg-muted;
+  }
+
+  .section-dark {
+    @apply py-16 md:py-24 bg-primary text-primary-foreground;
+  }
+
+  .eyebrow {
+    @apply text-sm font-semibold uppercase tracking-widest text-accent;
+  }
+
+  .heading-1 {
+    @apply font-heading text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl;
+  }
+
+  .heading-2 {
+    @apply font-heading text-3xl font-bold tracking-tight md:text-4xl;
+  }
+
+  .heading-3 {
+    @apply font-heading text-xl font-semibold md:text-2xl;
+  }
+
+  .lead {
+    @apply text-lg leading-relaxed text-muted-foreground;
+  }
+
+  .card-surface {
+    @apply rounded-xl border bg-card shadow-sm;
+  }
+
+  .card-hover {
+    @apply transition-all duration-200 hover:-translate-y-1 hover:shadow-lg;
+  }
+
+  /* Styles admin-authored Tiptap HTML rendered via dangerouslySetInnerHTML.
+     Without this, every service page and blog post renders as unstyled text. */
+  .prose-content {
+    @apply text-base leading-relaxed text-foreground/90;
+  }
+  .prose-content > * + * {
+    @apply mt-4;
+  }
+  .prose-content h1 {
+    @apply font-heading mt-10 mb-4 text-3xl font-bold tracking-tight;
+  }
+  .prose-content h2 {
+    @apply font-heading mt-10 mb-4 text-2xl font-bold tracking-tight;
+  }
+  .prose-content h3 {
+    @apply font-heading mt-8 mb-3 text-xl font-semibold;
+  }
+  .prose-content h4 {
+    @apply font-heading mt-6 mb-2 text-lg font-semibold;
+  }
+  .prose-content p {
+    @apply leading-relaxed;
+  }
+  .prose-content a {
+    @apply font-medium text-primary underline underline-offset-4 hover:text-brand-navy-light;
+  }
+  .prose-content ul {
+    @apply list-disc space-y-2 pl-6;
+  }
+  .prose-content ol {
+    @apply list-decimal space-y-2 pl-6;
+  }
+  .prose-content blockquote {
+    @apply border-l-4 border-accent bg-muted py-3 pr-4 pl-5 text-muted-foreground italic;
+  }
+  .prose-content img {
+    @apply my-6 rounded-lg border;
+  }
+  .prose-content hr {
+    @apply my-8 border-border;
+  }
+  .prose-content code {
+    @apply rounded bg-muted px-1.5 py-0.5 font-mono text-sm;
+  }
+  .prose-content pre {
+    @apply overflow-x-auto rounded-lg bg-primary p-4 text-primary-foreground;
+  }
+  .prose-content pre code {
+    @apply bg-transparent p-0 text-inherit;
+  }
+  .prose-content table {
+    @apply w-full border-collapse text-sm;
+  }
+  .prose-content th {
+    @apply border bg-muted px-3 py-2 text-left font-semibold;
+  }
+  .prose-content td {
+    @apply border px-3 py-2;
+  }
+  .prose-content strong {
+    @apply font-semibold text-foreground;
+  }
+}
