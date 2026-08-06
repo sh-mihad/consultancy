@@ -170,6 +170,15 @@
     @apply text-lg leading-relaxed text-muted-foreground;
   }
 
+  /* `.lead` is muted-foreground, which is unreadable on the navy background.
+     Re-tone the type helpers when they sit inside a dark section. */
+  .section-dark .lead {
+    @apply text-primary-foreground/75;
+  }
+  .section-dark .card-surface {
+    @apply border-white/10 bg-white/5 text-primary-foreground;
+  }
+
   .card-surface {
     @apply rounded-xl border bg-card shadow-sm;
   }
