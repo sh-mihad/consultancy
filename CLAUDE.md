@@ -78,10 +78,13 @@ consultency/
 │   │   └── home/      # Hero, AboutUs, MainServices, HowToOpen, Reviews, ContactForm
 │   ├── models/        # Menu.ts, Page.ts, Blog.ts, Admin.ts, Review.ts,
 │   │                  # SiteSettings.ts, ContactSubmission.ts
-│   ├── lib/           # db.ts, auth.ts, api-response.ts, slugify.ts, metadata.ts, validation/
-│   └── types/
+│   ├── lib/           # db.ts, auth-guard.ts, api-response.ts, slugify.ts,
+│   │                  # format.ts, metadata.ts, validation/
+│   ├── types/         # next-auth.d.ts (session/JWT augmentation)
+│   ├── auth.config.ts # EDGE-SAFE NextAuth config — imported by middleware
+│   ├── auth.ts        # Node-only NextAuth config — Credentials + Mongoose
+│   └── middleware.ts  # NextAuth protection for /admin/* (in src/, not repo root)
 ├── scripts/seed.ts
-├── middleware.ts      # NextAuth protection for /admin/*
 ├── .env.example
 └── CLAUDE.md
 ```
@@ -92,11 +95,13 @@ import from `components/ui/` (shadcn primitives); `components/home/` is public-s
 > **Status:** the tree above is the *target*. Built so far: the Next.js scaffold,
 > `components/ui/` (19 shadcn primitives + Container/Section/Spinner/EmptyState/StatusBadge),
 > `components/public/` (ServiceCard, BlogCard, StepCard, ReviewCard, Pagination),
-> `components/admin/` (PageHeader, ConfirmDialog), all 7 `models/`, `lib/db.ts`,
-> `lib/api-response.ts`, `lib/slugify.ts`, `lib/format.ts`, `lib/validation/`, and
-> `scripts/seed.ts`. **Not written yet:** `app/api/`, `app/admin/`, `components/home/`,
-> `lib/auth.ts`, `lib/metadata.ts`, and all public routes — `src/app/page.tsx` is still the
-> default Next.js starter page.
+> `components/admin/` (PageHeader, ConfirmDialog, AdminShell, AdminNav, LoginForm), all 7
+> `models/`, `lib/db.ts`, `lib/api-response.ts`, `lib/slugify.ts`, `lib/format.ts`,
+> `lib/auth-guard.ts`, `lib/validation/`, `scripts/seed.ts`, and full admin auth
+> (`auth.config.ts`, `auth.ts`, `middleware.ts`, `/admin/login`, `/admin/dashboard`).
+> **Not written yet:** the CRUD API routes, the rest of `app/admin/`, `components/home/`,
+> `lib/metadata.ts`, and all public routes — `src/app/page.tsx` is still the default Next.js
+> starter page.
 >
 > `src/app/test/` is a temporary component gallery. Delete it before launch (build order step 9).
 >
@@ -353,7 +358,7 @@ single source of truth for what is and isn't done.
 | --- | --- | --- |
 | 0 | Scaffold + theme + shared components | ✅ Done |
 | 1 | Database foundation | ✅ Done |
-| 2 | Admin authentication | ⬜ Not started |
+| 2 | Admin authentication | ✅ Done |
 | 3 | Menu CRUD | ⬜ Not started |
 | 4 | Page CRUD | ⬜ Not started |
 | 5 | Public navigation + service pages | ⬜ Not started |
@@ -387,15 +392,23 @@ single source of truth for what is and isn't done.
 - [x] `scripts/seed.ts` — idempotent, calls `syncIndexes()` on all models
 - [x] Verified: seed twice = no change; uniqueness negative-tested; build/lint/tsc clean
 
-### ⬜ 2. Admin authentication
+### ✅ 2. Admin authentication
 
-- [ ] Root `auth.ts` exporting `{ handlers, auth, signIn, signOut }` (v5 shape)
-- [ ] Credentials provider — **must `.select("+passwordHash")`**, bcrypt compare
-- [ ] `app/api/auth/[...nextauth]/route.ts` → `export const { GET, POST } = handlers`
-- [ ] `/admin/login` page (Formik + `loginSchema`)
-- [ ] `middleware.ts` protecting `/admin/*`, redirect to login, `/admin/login` excluded
-- [ ] `requireAdmin()` guard helper for API routes (middleware does not cover them)
-- [ ] Verify: seeded admin logs in; logged-out `/admin/dashboard` redirects
+- [x] **Split config** — `auth.config.ts` (edge-safe, no providers) + `auth.ts` (Node, Credentials).
+      Middleware imports only the former; importing `auth.ts` would pull Mongoose into the Edge
+      bundle and fail the build
+- [x] Credentials provider — `.select("+passwordHash")`, bcrypt compare, dummy compare on unknown
+      email so timing can't be used to enumerate accounts
+- [x] `app/api/auth/[...nextauth]/route.ts` → `export const { GET, POST } = handlers`
+- [x] `/admin/login` (Formik + `loginSchema`), open-redirect guard on `callbackUrl`
+- [x] `src/middleware.ts` protecting `/admin/*`, `/admin/login` excluded from the guard
+- [x] `lib/auth-guard.ts` `requireAdmin()` for API routes
+- [x] `AdminShell` + `AdminNav` + mobile `Sheet` nav, sign out via server action
+- [x] `/admin/(protected)/` route group so login renders without the shell
+- [x] `/admin/dashboard` with live counts; `/admin` redirects to it
+- [x] Verified 17/17 over HTTP: wrong password rejected, session carries id/email/role,
+      `passwordHash` never leaks, signed-in users bounced off the login page, public routes
+      unaffected
 
 ### ⬜ 3. Menu CRUD
 
@@ -523,8 +536,19 @@ stall the driver before falling back.
 - **Mongoose 9 deprecated the `new` option** on `findOneAndUpdate`. Use
   `returnDocument: "before" | "after"` instead — `new: true` still works but logs a warning on
   every call.
-- **A stale `.next` can fail the build with `PageNotFoundError: /_document`** — a Pages Router
-  error in an App Router project. It is not a real code fault: `rm -rf .next` and rebuild.
+- **A stale `.next` produces bogus failures.** Two seen so far: `PageNotFoundError: /_document`
+  (a Pages Router error in an App Router project) during build, and an **empty
+  `app-paths-manifest.json`** that makes every route 404 at runtime *even though the build printed
+  a full route table and the HTML exists on disk*. Neither is a code fault. `rm -rf .next` and
+  rebuild before debugging anything that looks structurally impossible.
+- **Augment `@auth/core/jwt`, not `next-auth/jwt`.** `next-auth/jwt` is only
+  `export * from "@auth/core/jwt"`, and declaration-merging against a pure re-export silently does
+  nothing — `token.id` stays `unknown`, which `if (token.id)` narrows to `{}`. See
+  `src/types/next-auth.d.ts`.
+- **Middleware lives at `src/middleware.ts`, not the repo root**, because the project uses a `src`
+  directory. Next.js will not pick it up at the root in that layout.
+- **Never import `@/auth` from middleware.** It pulls in Mongoose and bcrypt, which cannot run in
+  the Edge runtime. Import `@/auth.config` instead — that split is the whole reason the file exists.
 - **`passwordHash` is `select: false`** on the Admin schema, so it is absent from query results
   unless explicitly requested with `.select("+passwordHash")`. The credentials provider must ask
   for it or every login silently fails.
