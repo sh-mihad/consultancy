@@ -1,16 +1,16 @@
 import * as React from "react"
-import { Quote, Star } from "lucide-react"
+import { Star } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 import { initials } from "@/lib/format"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-function Rating({ value }: { value: number }) {
+function Rating({ value, className }: { value: number; className?: string }) {
   const rounded = Math.max(0, Math.min(5, Math.round(value)))
 
   return (
     <div
-      className="flex items-center gap-0.5"
+      className={cn("flex items-center gap-0.5", className)}
       role="img"
       aria-label={`${rounded} out of 5 stars`}
     >
@@ -19,8 +19,12 @@ function Rating({ value }: { value: number }) {
           key={i}
           aria-hidden="true"
           className={cn(
-            "size-4",
-            i < rounded ? "fill-accent text-accent" : "fill-muted text-muted"
+            "size-3.5",
+            // --brand-gold is only 2.4:1 on white; the dark end of the ramp
+            // clears the 3:1 floor for a non-text graphic.
+            i < rounded
+              ? "fill-brand-gold-dark text-brand-gold-dark"
+              : "fill-border text-border"
           )}
         />
       ))}
@@ -31,6 +35,9 @@ function Rating({ value }: { value: number }) {
 /**
  * A customer testimonial. Admin-entered only — never rendered from Google
  * Places data. Homepage section exclusively.
+ *
+ * Borderless by design: a wall of bordered cards reads as a product page, and
+ * these are attestations. The foil rule opens the block instead.
  */
 function ReviewCard({
   authorName,
@@ -50,28 +57,21 @@ function ReviewCard({
   return (
     <figure
       data-slot="review-card"
-      className={cn("card-surface flex flex-col p-6", className)}
+      className={cn("relative flex flex-col pt-6", className)}
       {...props}
     >
-      <Quote
-        className="mb-3 size-7 text-accent/30"
-        aria-hidden="true"
-      />
+      <span aria-hidden="true" className="absolute top-0 left-0 h-px w-10 bg-accent" />
 
-      {typeof rating === "number" ? (
-        <div className="mb-3">
-          <Rating value={rating} />
-        </div>
-      ) : null}
+      {typeof rating === "number" ? <Rating value={rating} className="mb-4" /> : null}
 
-      <blockquote className="flex-1 text-sm leading-relaxed text-foreground/90">
+      <blockquote className="font-heading flex-1 text-[1.1875rem] leading-[1.55] text-pretty text-foreground/90 italic">
         {quote}
       </blockquote>
 
-      <figcaption className="mt-5 flex items-center gap-3 border-t pt-4">
-        <Avatar className="size-10">
-          {avatar ? <AvatarImage src={avatar} alt="" /> : null}
-          <AvatarFallback className="bg-primary/5 text-xs font-semibold text-primary">
+      <figcaption className="mt-6 flex items-center gap-3">
+        <Avatar className="size-9 rounded-none">
+          {avatar ? <AvatarImage src={avatar} alt="" className="rounded-none" /> : null}
+          <AvatarFallback className="rounded-none bg-primary/6 font-mono text-[0.7rem] font-medium text-primary">
             {initials(authorName)}
           </AvatarFallback>
         </Avatar>

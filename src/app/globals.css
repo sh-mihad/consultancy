@@ -12,7 +12,11 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-sans);
   --font-mono: var(--font-geist-mono);
-  --font-heading: var(--font-sans);
+  /* Display face. Headings across the whole public site resolve through
+     --font-heading, so remapping it here is the single switch for the
+     serif identity. */
+  --font-serif: var(--font-serif);
+  --font-heading: var(--font-serif);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,6 +53,8 @@
   --color-brand-navy-light: var(--brand-navy-light);
   --color-brand-gold: var(--brand-gold);
   --color-brand-gold-dark: var(--brand-gold-dark);
+  --color-brand-gold-light: var(--brand-gold-light);
+  --color-brand-gold-ink: var(--brand-gold-ink);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -69,6 +75,13 @@
   --brand-navy-light: #1c4270;
   --brand-gold: #c9a227;
   --brand-gold-dark: #a8861d;
+  /* Gold has to shift with the ground it sits on. --brand-gold is only 2.4:1
+     against white, so it may carry rules and marks there but never small text;
+     these two are the readable ends of the ramp.
+       --brand-gold-light  on navy  8.9:1
+       --brand-gold-ink    on white 5.9:1 */
+  --brand-gold-light: #e4ca7c;
+  --brand-gold-ink: #7a6114;
 
   /* semantic surface */
   --background: #ffffff;
@@ -139,31 +152,51 @@
   }
 
   .section {
-    @apply py-16 md:py-24;
+    @apply py-20 md:py-28;
   }
 
   .section-alt {
-    @apply py-16 md:py-24 bg-muted;
+    @apply py-20 md:py-28 bg-muted;
   }
 
   .section-dark {
-    @apply py-16 md:py-24 bg-primary text-primary-foreground;
+    @apply py-20 md:py-28 bg-primary text-primary-foreground;
   }
 
+  /* Small-caps mono label with a gold hairline tick. The tick is the page's
+     recurring foil mark — it appears here rather than in every call site so a
+     section head can never be written without it. */
   .eyebrow {
-    @apply text-sm font-semibold uppercase tracking-widest text-accent;
+    @apply inline-flex items-center gap-2.5 font-mono text-[0.7rem] font-medium
+           uppercase tracking-[0.2em] text-primary/75;
+  }
+  .eyebrow::before {
+    content: "";
+    @apply h-px w-6 shrink-0 bg-accent;
+  }
+  .section-dark .eyebrow {
+    @apply text-brand-gold-light;
   }
 
+  /* Field label for record data — counts, addresses, metric captions. */
+  .label-field {
+    @apply font-mono text-[0.68rem] font-medium uppercase tracking-[0.18em] text-muted-foreground;
+  }
+
+  /* Serif at display size wants less weight than a grotesque; 500 reads as
+     authoritative where 700 reads as shouting. */
   .heading-1 {
-    @apply font-heading text-4xl font-bold tracking-tight md:text-5xl lg:text-6xl;
+    @apply font-heading text-[2.5rem] font-medium leading-[1.06] tracking-[-0.02em]
+           md:text-5xl lg:text-[3.5rem];
   }
 
   .heading-2 {
-    @apply font-heading text-3xl font-bold tracking-tight md:text-4xl;
+    @apply font-heading text-[1.875rem] font-medium leading-[1.12] tracking-[-0.015em]
+           md:text-[2.5rem];
   }
 
   .heading-3 {
-    @apply font-heading text-xl font-semibold md:text-2xl;
+    @apply font-heading text-xl font-medium tracking-[-0.01em] md:text-[1.35rem];
   }
 
   .lead {
@@ -186,6 +219,70 @@
   .card-hover {
     @apply transition-all duration-200 hover:-translate-y-1 hover:shadow-lg;
   }
+
+  .section-dark .label-field {
+    @apply text-primary-foreground/50;
+  }
+
+  /* Engine-turned line-work — the crossed hairline engraving used on share
+     certificates and banknotes. Purely decorative, so it is always masked back
+     to near-invisibility and sits behind content on a dark ground.
+     Set the strength with an opacity utility at the call site. */
+  .engrave {
+    background-image:
+      repeating-linear-gradient(
+        58deg,
+        var(--brand-gold-light) 0 1px,
+        transparent 1px 11px
+      ),
+      repeating-linear-gradient(
+        -58deg,
+        var(--brand-gold-light) 0 1px,
+        transparent 1px 11px
+      );
+    -webkit-mask-image: radial-gradient(
+      75% 65% at 72% 28%,
+      #000 0%,
+      transparent 78%
+    );
+    mask-image: radial-gradient(75% 65% at 72% 28%, #000 0%, transparent 78%);
+  }
+
+  /* Foil edge — a hairline that starts gold and dissolves. Used to open a
+     block rather than to box one in. */
+  .rule-foil {
+    @apply h-px w-full bg-linear-to-r from-accent via-accent/30 to-transparent;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Motion. One gesture, used only on first paint in the hero.
+   --------------------------------------------------------------------------- */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.8s cubic-bezier(0.22, 0.68, 0.24, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rise {
+    animation: none;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
+
+@layer components {
 
   /* Styles admin-authored Tiptap HTML rendered via dangerouslySetInnerHTML.
      Without this, every service page and blog post renders as unstyled text. */

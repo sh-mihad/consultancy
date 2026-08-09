@@ -30,7 +30,9 @@ export default async function HomePage() {
 
   return (
     <>
-      <Hero hero={settings.hero} />
+      {/* The hero's practice register is the Menu collection too — same query,
+          rendered as the firm's index. */}
+      <Hero hero={settings.hero} menus={menus} />
 
       <AboutUs aboutUs={settings.aboutUs} />
 

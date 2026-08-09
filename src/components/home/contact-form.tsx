@@ -10,6 +10,9 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { contactSchema, type ContactInput } from "@/lib/validation"
 
+/** Square fields to match the plate they sit on. */
+const FIELD = "h-11 rounded-none bg-background"
+
 const INITIAL: ContactInput = {
   name: "",
   email: "",
@@ -25,12 +28,11 @@ export function ContactForm() {
 
   if (sent) {
     return (
-      <div className="card-surface flex flex-col items-center p-8 text-center">
-        <div className="mb-4 flex size-12 items-center justify-center rounded-full bg-success/10">
-          <CheckCircle2 className="size-6 text-success" aria-hidden="true" />
-        </div>
-        <h3 className="font-heading text-lg font-semibold">Message sent</h3>
-        <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
+      <div className="relative flex flex-col items-center border bg-card p-10 text-center">
+        <div className="rule-foil absolute inset-x-0 top-0" aria-hidden="true" />
+        <CheckCircle2 className="mb-4 size-7 text-success" aria-hidden="true" />
+        <h3 className="font-heading text-xl font-medium">Message sent</h3>
+        <p className="mt-2 max-w-sm text-sm leading-relaxed text-muted-foreground">
           Thank you — we&apos;ve received your message and will get back to you within one
           working day.
         </p>
@@ -68,11 +70,16 @@ export function ContactForm() {
       }}
     >
       {({ isSubmitting, errors, touched }) => (
-        <Form className="card-surface space-y-4 p-6" noValidate>
+        <Form
+          className="relative space-y-5 border bg-card p-7 md:p-9"
+          noValidate
+        >
+          <div className="rule-foil absolute inset-x-0 top-0" aria-hidden="true" />
+
           {formError ? (
             <div
               role="alert"
-              className="flex items-start gap-2.5 rounded-lg bg-destructive/10 px-3.5 py-3 text-sm text-destructive"
+              className="flex items-start gap-2.5 bg-destructive/10 px-3.5 py-3 text-sm text-destructive"
             >
               <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
               <span>{formError}</span>
@@ -96,6 +103,7 @@ export function ContactForm() {
                   <Input
                     {...field}
                     id="name"
+                    className={FIELD}
                     placeholder="Your full name"
                     aria-invalid={Boolean(touched.name && errors.name)}
                     disabled={isSubmitting}
@@ -117,6 +125,7 @@ export function ContactForm() {
                     {...field}
                     id="email"
                     type="email"
+                    className={FIELD}
                     placeholder="you@company.com"
                     aria-invalid={Boolean(touched.email && errors.email)}
                     disabled={isSubmitting}
@@ -135,6 +144,7 @@ export function ContactForm() {
                   <Input
                     {...field}
                     id="phone"
+                    className={FIELD}
                     placeholder="+880 …"
                     disabled={isSubmitting}
                   />
@@ -149,6 +159,7 @@ export function ContactForm() {
                   <Input
                     {...field}
                     id="subject"
+                    className={FIELD}
                     placeholder="Company registration"
                     disabled={isSubmitting}
                   />
@@ -167,6 +178,7 @@ export function ContactForm() {
                   {...field}
                   id="message"
                   rows={5}
+                  className="rounded-none bg-background"
                   placeholder="Tell us what you're trying to set up…"
                   aria-invalid={Boolean(touched.message && errors.message)}
                   disabled={isSubmitting}
@@ -178,7 +190,12 @@ export function ContactForm() {
             ) : null}
           </div>
 
-          <Button type="submit" size="lg" className="h-11 w-full" disabled={isSubmitting}>
+          <Button
+            type="submit"
+            size="lg"
+            className="h-12 w-full rounded-none"
+            disabled={isSubmitting}
+          >
             {isSubmitting ? (
               <>
                 <LoaderCircle className="animate-spin" aria-hidden="true" />

@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { Geist, Geist_Mono, Newsreader } from "next/font/google"
 
 import "./globals.css"
 
@@ -14,6 +14,15 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+})
+
+// Display face for every heading on the site — globals.css maps
+// --font-heading onto it. Italic is loaded because testimonials are set in it.
+const newsreader = Newsreader({
+  variable: "--font-serif",
+  subsets: ["latin"],
+  style: ["normal", "italic"],
+  display: "swap",
 })
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
@@ -43,8 +52,15 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+    /* The font variables must be declared on <html>, not <body>: globals.css
+       applies `font-sans` to the html element, and a var defined one level
+       lower resolves to nothing there — the whole site silently falls back to
+       the UA serif. */
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable} ${newsreader.variable}`}
+    >
+      <body className="antialiased">
         {children}
       </body>
     </html>
