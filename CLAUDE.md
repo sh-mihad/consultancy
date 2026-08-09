@@ -68,20 +68,23 @@ consultency/
 │   │   │   ├── reviews/[id]/route.ts           # PUT, DELETE
 │   │   │   ├── contact/route.ts                # POST (public, rate-limited)
 │   │   │   ├── submissions/[id]/route.ts       # PATCH, DELETE (admin)
-│   │   │   └── settings/route.ts               # GET, PUT (singleton)
+│   │   │   ├── settings/route.ts               # GET, PUT (singleton)
+│   │   │   └── upload/signature/route.ts       # POST — Cloudinary upload signature
 │   │   └── layout.tsx
 │   ├── components/
 │   │   ├── ui/        # shadcn/ui primitives — shared, importable by admin and public
 │   │   ├── admin/     # AdminShell, DataTable (TanStack), MenuDialog, ReviewDialog,
 │   │   │              # SubmissionDialog, PageForm, BlogForm, SettingsForm,
-│   │   │              # RichTextEditor, ConfirmDialog, StatusBadge, PageHeader, EmptyState
+│   │   │              # RichTextEditor, ImageUploadField, ConfirmDialog, StatusBadge,
+│   │   │              # PageHeader, EmptyState
 │   │   ├── public/    # Navbar, Footer, ServiceCard, BlogCard, Pagination
 │   │   └── home/      # Hero, AboutUs, MainServices, HowToOpen, Reviews, ContactForm
 │   ├── models/        # Menu.ts, Page.ts, Blog.ts, Admin.ts, Review.ts,
 │   │                  # SiteSettings.ts, ContactSubmission.ts
 │   ├── lib/           # db.ts, auth-guard.ts, api-response.ts, slugify.ts, format.ts,
 │   │                  # metadata.ts, settings.ts, reorder.ts, rate-limit.ts,
-│   │                  # sanitize.ts, queries.ts, validation/
+│   │                  # sanitize.ts, queries.ts, cloudinary.ts (server), upload.ts
+│   │                  # (client-safe), validation/
 │   ├── types/         # next-auth.d.ts (session/JWT augmentation)
 │   ├── auth.config.ts # EDGE-SAFE NextAuth config — imported by middleware
 │   ├── auth.ts        # Node-only NextAuth config — Credentials + Mongoose
@@ -274,6 +277,7 @@ Written by the public `POST /api/contact`; readable only by an authenticated adm
 | `/api/contact` | api | `POST` — **the only public write endpoint.** Rate-limit + honeypot |
 | `/api/submissions/[id]` | api | `PATCH` (mark read), `DELETE` |
 | `/api/settings` | api | `GET`, `PUT` (upsert singleton) |
+| `/api/upload/signature` | api | `POST` — admin-only Cloudinary upload signature. The file itself goes browser → Cloudinary, never through here |
 | `/api/auth/[...nextauth]` | api | NextAuth handler |
 
 Public routes must only ever return `isPublished: true` content.
@@ -323,8 +327,9 @@ Notes:
    `/admin/login`; the middleware does **not** cover API routes, so guard them individually.
    **The single exception is `POST /api/contact`**, which is public by design — protect it with a
    honeypot field and rate limiting instead, and never let it return stored submissions.
-7. **Env vars** — `MONGODB_URI`, `AUTH_SECRET`, `AUTH_URL`, `NEXT_PUBLIC_SITE_URL`, plus
-   `SEED_ADMIN_*` for the seed script. **NextAuth v5 reads `AUTH_SECRET`, not `NEXTAUTH_SECRET`.**
+7. **Env vars** — `MONGODB_URI`, `AUTH_SECRET`, `AUTH_URL`, `NEXT_PUBLIC_SITE_URL`,
+   `CLOUDINARY_CLOUD_NAME` / `_API_KEY` / `_API_SECRET`, plus `SEED_ADMIN_*` for the seed script.
+   **NextAuth v5 reads `AUTH_SECRET`, not `NEXTAUTH_SECRET`.**
    Keep `.env.example` in sync; never commit `.env.local`. `.gitignore` ignores `.env*` but
    re-includes `!.env.example` — don't remove that negation or setup docs break.
 8. **Dynamic navigation** — the navbar is built server-side from the `Menu`/`Page` collections with
@@ -363,6 +368,7 @@ single source of truth for what is and isn't done.
 | 7 | Homepage (7 sections) | ✅ Done |
 | 8 | SEO metadata + OG images | ⬜ Not started |
 | 9 | Polish + remove `/test` | ⬜ Not started |
+| 10 | Image uploads (Cloudinary) | 🟨 Blog cover done, 6 fields left |
 
 ---
 
@@ -525,6 +531,35 @@ and buttons stop being clickable.
 - [ ] **Delete `src/app/test/`**
 - [ ] Final production build clean
 
+### 🟨 10. Image uploads (Cloudinary)
+
+Images used to be URL strings an admin pasted in — which meant they had to host the file somewhere
+else first. Uploads fix that. **Signed direct upload:** the browser gets a signature from
+`POST /api/upload/signature` (admin-guarded, rate-limited per admin), then posts the file straight
+to Cloudinary. The file never passes through this app — a route handler would hit the body-size
+limit and cost double the bandwidth for nothing. An unsigned upload preset was rejected outright:
+anyone who finds the preset name can then upload to the account.
+
+- [x] `lib/cloudinary.ts` — env config with a named fail-fast error, `signUpload()` via
+      `node:crypto`. **No `cloudinary` npm package** — the signature is 15 lines of SHA-1
+- [x] `lib/upload.ts` — size/type rules shared by both sides. Split out because a `"use client"`
+      component importing `lib/cloudinary.ts` would drag `node:crypto` into the browser bundle
+- [x] `POST /api/upload/signature` — `requireAdmin()`, 30/min per admin via `lib/rate-limit.ts`
+- [x] `components/admin/image-upload-field.tsx` — Formik-bound, `useField`, drop zone → preview
+      with Replace/Remove. Field-name agnostic, so the other six adopt it with one prop
+- [x] Wired into `Blog.coverImage`; Save is disabled while an upload is in flight
+- [ ] Remaining six fields: blog `ogImage`, page `ogImage`, `Review.avatar`,
+      `hero.backgroundImage`, `aboutUs.image`, `seo.defaultOgImage`
+- [ ] Narrow `next.config.ts` `remotePatterns` to `res.cloudinary.com` — only possible once all
+      seven fields upload, since the rest still accept pasted URLs from any host
+
+> **Nothing else changed.** Cloudinary returns an ordinary https URL and `coverImage` was already a
+> URL string, so the model, `blogSchema`, and `/api/blogs` are all untouched. Existing pasted URLs
+> (the `seed:demo` blogs) still render in the preview with Replace and Remove available.
+>
+> **Old files are not deleted** when an admin replaces an image. Tracking Cloudinary `publicId`s
+> would mean a schema change on four models to reclaim a few KB of a 25 GB free tier.
+
 ## Commands
 
 ```bash
@@ -659,3 +694,19 @@ stall the driver before falling back.
 - **`passwordHash` is `select: false`** on the Admin schema, so it is absent from query results
   unless explicitly requested with `.select("+passwordHash")`. The credentials provider must ask
   for it or every login silently fails.
+- **A Cloudinary signature must cover exactly the params you send** — every upload field except
+  `file`, `api_key`, `resource_type` and `cloud_name`, sorted by key, joined `k=v&k=v`, secret
+  appended, SHA-1. Sign one you don't send, or send one you didn't sign, and the response is a bare
+  *"Invalid Signature"* that names no field. If you add a param to the `FormData` in
+  `ImageUploadField`, add it to `signUpload()` in the same commit.
+- **Never import `lib/cloudinary.ts` from a client component.** It pulls in `node:crypto`, which
+  does not exist in the browser bundle. The shared size and MIME rules live in `lib/upload.ts`
+  precisely so `"use client"` code has something safe to import — same split rationale as
+  `auth.ts` vs `auth.config.ts`.
+- **Cloudinary wants `timestamp` in seconds, not milliseconds.** `Date.now()` straight from JS
+  produces a value ~1000× in the future and the upload is rejected as expired.
+- **Reset `event.target.value` after reading a picked file.** Without it, choosing the *same* file
+  twice in a row fires no `change` event and the second upload silently never happens.
+- **`process.env.CLOUDINARY_*` must not be `NEXT_PUBLIC_`.** The secret signs uploads; exposing it
+  hands anyone the ability to write into the account. The cloud name and API key reach the browser
+  through the signature response instead, which keeps all three in one place.

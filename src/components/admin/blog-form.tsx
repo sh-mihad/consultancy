@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ImageUploadField } from "@/components/admin/image-upload-field"
 import { blogSchema } from "@/lib/validation"
 import { slugify } from "@/lib/slugify"
 
@@ -60,6 +61,8 @@ export function BlogForm({ blog }: { blog?: ExistingBlog }) {
   const router = useRouter()
   const [formError, setFormError] = React.useState<string | null>(null)
   const [slugLocked, setSlugLocked] = React.useState(Boolean(blog))
+  // Saving mid-upload would persist the old cover and throw away the new one.
+  const [uploading, setUploading] = React.useState(false)
 
   const isEdit = Boolean(blog)
 
@@ -123,7 +126,10 @@ export function BlogForm({ blog }: { blog?: ExistingBlog }) {
                   </a>
                 </Button>
               ) : null}
-              <Button type="submit" disabled={isSubmitting || (isEdit && !dirty)}>
+              <Button
+                type="submit"
+                disabled={isSubmitting || uploading || (isEdit && !dirty)}
+              >
                 {isSubmitting ? (
                   <>
                     <LoaderCircle className="animate-spin" aria-hidden="true" />
@@ -312,26 +318,14 @@ export function BlogForm({ blog }: { blog?: ExistingBlog }) {
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="coverImage">Cover image</Label>
-                <Field name="coverImage">
-                  {({ field }: FieldProps) => (
-                    <Input
-                      {...field}
-                      id="coverImage"
-                      placeholder="https://…/cover.jpg"
-                      aria-invalid={Boolean(touched.coverImage && errors.coverImage)}
-                      disabled={isSubmitting}
-                    />
-                  )}
-                </Field>
-                <p className="text-xs text-muted-foreground">
-                  16:9. Shown on cards and at the top of the post.
-                </p>
-                {touched.coverImage && errors.coverImage ? (
-                  <p className="text-xs text-destructive">{errors.coverImage}</p>
-                ) : null}
-              </div>
+              <ImageUploadField
+                name="coverImage"
+                label="Cover image"
+                help="16:9. Shown on cards and at the top of the post."
+                aspect="16 / 9"
+                disabled={isSubmitting}
+                onUploadingChange={setUploading}
+              />
 
               <div className="flex items-center gap-3 rounded-lg border p-4">
                 <Switch
